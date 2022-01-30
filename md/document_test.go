@@ -13,12 +13,12 @@ var fsys = fstest.MapFS{
 		Data: []byte(`
 			# A regular markdown document
 
-			#include "othermarkdowndoc.md"
+			#include "mddocsdir/othermarkdowndoc.md"
 
 			## Some sub headings
 			> a nice inline quote
 
-			#include "yetanotherothermarkdowndoc.md"
+			#include "mddocsdir/yetanotherothermarkdowndoc.md"
 		`),
 	},
 	"mddocsdir/othermarkdowndoc.md": &fstest.MapFile{

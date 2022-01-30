@@ -7,11 +7,14 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	paths "path"
 	"regexp"
+	"strings"
 )
 
 type include struct {
 	path    string
+	name    string
 	parent  string
 	linePos int
 }
@@ -52,22 +55,48 @@ func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
 		return fmt.Errorf("failed to read given dir: %s: %w", path, err)
 	}
 
-	for _, e := range entries {
-		fmt.Printf("ENTRY: %s\n", e.Name())
+	errs := errGroup{}
+	for _, i := range d.includes {
+		ok := searchEntriesFor(i.name, entries)
+		if !ok {
+			errs = append(errs, fmt.Errorf("missing file for include: %s", i.path))
+			continue
+		}
+
+		includedDoc, err := Open(i.path, fsys)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		if err := includedDoc.parse(); err != nil {
+			errs = append(errs, err)
+		}
 	}
 
-	return nil
+	return errs.toErrOrNil()
+}
+
+func searchEntriesFor(name string, entries []fs.DirEntry) bool {
+	for _, e := range entries {
+		fmt.Printf("MATCHING: %s AGAINST: %s\n", name, e.Name())
+		if name == e.Name() {
+			return true
+		}
+	}
+	return false
 }
 
 type errGroup []error
 
 func (e errGroup) toErrOrNil() error {
 	if len(e) > 0 {
-		fe := errors.New("")
+		buf := strings.Builder{}
+		buf.WriteString(fmt.Sprintf("%d errors occurred:\n", len(e)))
 		for _, err := range e {
-			fe = fmt.Errorf("%v: %v", fe, err)
+			buf.WriteString(fmt.Sprintf("\t* %v\n", err))
 		}
-		return fe
+		return errors.New(buf.String())
 	}
 	return nil
 }
@@ -81,6 +110,7 @@ func (d *Document) parse() error {
 		if path, ok := isInclude(l); ok {
 			d.includes = append(d.includes, include{
 				path,
+				paths.Base(path),
 				d.name,
 				pos,
 			})
@@ -94,7 +124,7 @@ func Open(name string, fsyses ...fs.FS) (*Document, error) {
 	fsys := resolveFS(".", fsyses)
 	fd, err := fsys.Open(name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%v: path: %s", err, name)
 	}
 
 	doc, err := newFromFile(fd)
