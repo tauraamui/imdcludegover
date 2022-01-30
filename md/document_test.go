@@ -12,7 +12,13 @@ var fsys = fstest.MapFS{
 	"docwithincludes.md": &fstest.MapFile{
 		Data: []byte(`
 			# A regular markdown document
+
 			#include "othermarkdowndoc.md"
+
+			## Some sub headings
+			> a nice inline quote
+
+			#include "yetanotherothermarkdowndoc.md"
 		`),
 	},
 }
@@ -45,5 +51,15 @@ func TestIncludesAreFoundInDocumentWithIncludes(t *testing.T) {
 
 	doc, err := Open("docwithincludes.md", fsys)
 	is.NoErr(err)
-	is.Equal(len(doc.includes), 1)
+	is.Equal(len(doc.includes), 2)
+	is.Equal(doc.includes[0], include{
+		path:    "othermarkdowndoc.md",
+		parent:  "docwithincludes.md",
+		linePos: 4,
+	})
+	is.Equal(doc.includes[1], include{
+		path:    "yetanotherothermarkdowndoc.md",
+		parent:  "docwithincludes.md",
+		linePos: 9,
+	})
 }
