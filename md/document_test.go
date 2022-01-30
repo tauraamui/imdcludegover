@@ -21,6 +21,16 @@ var fsys = fstest.MapFS{
 			#include "yetanotherothermarkdowndoc.md"
 		`),
 	},
+	"mddocsdir/othermarkdowndoc.md": &fstest.MapFile{
+		Data: []byte(`
+			# A child markdown document called other
+		`),
+	},
+	"mddocsdir/yetanotherothermarkdowndoc.md": &fstest.MapFile{
+		Data: []byte(`
+			# A child markdown document called yet another
+		`),
+	},
 }
 
 func TestOpenEmptyRootMDDoc(t *testing.T) {
@@ -62,4 +72,13 @@ func TestIncludesAreFoundInDocumentWithIncludes(t *testing.T) {
 		parent:  "docwithincludes.md",
 		linePos: 9,
 	})
+}
+
+func TestIncludesAreResolved(t *testing.T) {
+	is := is.New(t)
+
+	doc, err := Open("docwithincludes.md", fsys)
+	is.NoErr(err)
+
+	is.NoErr(doc.ResolveIncludes("mddocsdir", fsys))
 }

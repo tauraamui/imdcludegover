@@ -44,6 +44,18 @@ func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
 	if len(d.includes) == 0 {
 		return fmt.Errorf("document %s contains no includes", d.name)
 	}
+
+	fsys := resolveFS(path, fsyses)
+
+	entries, err := fs.ReadDir(fsys, path)
+	if err != nil {
+		return fmt.Errorf("failed to read given dir: %s: %w", path, err)
+	}
+
+	for _, e := range entries {
+		fmt.Printf("ENTRY: %s\n", e.Name())
+	}
+
 	return nil
 }
 
