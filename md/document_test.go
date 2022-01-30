@@ -1,6 +1,7 @@
 package md
 
 import (
+	"fmt"
 	"testing"
 	"testing/fstest"
 
@@ -19,17 +20,15 @@ var fsys = fstest.MapFS{
 			> a nice inline quote
 
 			#include "mddocsdir/yetanotherothermarkdowndoc.md"
+
+			### Another sub header
 		`),
 	},
 	"mddocsdir/othermarkdowndoc.md": &fstest.MapFile{
-		Data: []byte(`
-			# A child markdown document called other
-		`),
+		Data: []byte(`                     # A child markdown document called other`),
 	},
 	"mddocsdir/yetanotherothermarkdowndoc.md": &fstest.MapFile{
-		Data: []byte(`
-			# A child markdown document called yet another
-		`),
+		Data: []byte(`                     # A child markdown document called yet another`),
 	},
 }
 
@@ -44,16 +43,6 @@ func TestOpenNonExistantDoc(t *testing.T) {
 	_, err := Open("doesnotexist.md", fsys)
 	is.True(err != nil)
 	is.Equal(err.Error(), "open doesnotexist.md: file does not exist: path: doesnotexist.md")
-}
-
-func TestResolveIncludesOfEmptyDoc(t *testing.T) {
-	is := is.New(t)
-
-	doc, err := Open("emptydoc.md", fsys)
-	is.NoErr(err)
-	err = doc.ResolveIncludes("")
-	is.True(err != nil)
-	is.Equal(err.Error(), "document emptydoc.md contains no includes")
 }
 
 func TestIncludesAreFoundInDocumentWithIncludes(t *testing.T) {
@@ -83,4 +72,8 @@ func TestIncludesAreResolved(t *testing.T) {
 	is.NoErr(err)
 
 	is.NoErr(doc.ResolveIncludes("mddocsdir", fsys))
+
+	for i, l := range doc.lineContent {
+		fmt.Printf("%d: %s\n", i, l)
+	}
 }

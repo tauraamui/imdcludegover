@@ -17,6 +17,7 @@ type include struct {
 	name    string
 	parent  string
 	linePos int
+	doc     *Document
 }
 
 type Document struct {
@@ -27,11 +28,11 @@ type Document struct {
 }
 
 func New(name string, r io.Reader) *Document {
-	return &Document{name: name, r: r}
+	return &Document{name: name, r: r, includes: []include{}}
 }
 
 func newFromFile(fd fs.File) (*Document, error) {
-	d := Document{r: fd}
+	d := Document{r: fd, includes: []include{}}
 
 	fi, err := fd.Stat()
 	if err != nil {
@@ -44,46 +45,70 @@ func newFromFile(fd fs.File) (*Document, error) {
 }
 
 func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
-	if len(d.includes) == 0 {
-		return fmt.Errorf("document %s contains no includes", d.name)
+	if d.includes == nil || len(d.includes) == 0 {
+		return nil
 	}
 
-	fsys := resolveFS(path, fsyses)
-
-	entries, err := fs.ReadDir(fsys, path)
-	if err != nil {
-		return fmt.Errorf("failed to read given dir: %s: %w", path, err)
+	if err := d.openAllIncludes(resolveFS(path, fsyses)); err != nil {
+		return err
 	}
 
-	errs := errGroup{}
-	for _, i := range d.includes {
-		ok := searchEntriesFor(i.name, entries)
-		if !ok {
-			errs = append(errs, fmt.Errorf("missing file for include: %s", i.path))
+	if err := d.resolveIncludesIncludes(path, fsyses...); err != nil {
+		return err
+	}
+
+	posOffset := 0
+	for _, incl := range d.includes {
+		if incl.doc == nil {
 			continue
 		}
 
-		includedDoc, err := Open(i.path, fsys)
+		inclPos := incl.linePos
+		posOffset += len(incl.doc.lineContent)
+
+		var content []string
+		content = append(content, d.lineContent[:inclPos-1]...)
+		content = append(content, incl.doc.lineContent...)
+		content = append(content, d.lineContent[inclPos:]...)
+
+		d.lineContent = content
+	}
+
+	return nil
+}
+
+func (d *Document) resolveIncludesIncludes(path string, fsyses ...fs.FS) error {
+	errs := errGroup{}
+	for _, incl := range d.includes {
+		if incl.doc == nil {
+			continue
+		}
+		if err := incl.doc.ResolveIncludes(path, fsyses...); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errs.toErrOrNil()
+}
+
+func (d *Document) openAllIncludes(fsys fs.FS) error {
+	errs := errGroup{}
+	for i := 0; i < len(d.includes); i++ {
+		ii := d.includes[i]
+		incl, err := Open(ii.path, fsys)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 
-		if err := includedDoc.parse(); err != nil {
+		if err := incl.parse(); err != nil {
 			errs = append(errs, err)
+			continue
 		}
+
+		d.includes[i].doc = incl
 	}
 
 	return errs.toErrOrNil()
-}
-
-func searchEntriesFor(name string, entries []fs.DirEntry) bool {
-	for _, e := range entries {
-		if name == e.Name() {
-			return true
-		}
-	}
-	return false
 }
 
 type errGroup []error
@@ -112,6 +137,7 @@ func (d *Document) parse() error {
 				paths.Base(path),
 				d.name,
 				pos,
+				nil,
 			})
 		}
 		d.lineContent = append(d.lineContent, l)
