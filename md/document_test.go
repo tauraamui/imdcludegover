@@ -20,6 +20,7 @@ var fsys = fstest.MapFS{
 			> a nice inline quote
 
 			#include "mddocsdir/yetanotherothermarkdowndoc.md"
+			#include "mddocsdir/multilineothermarkdowndoc.md"
 
 			### Another sub header
 		`),
@@ -29,6 +30,14 @@ var fsys = fstest.MapFS{
 	},
 	"mddocsdir/yetanotherothermarkdowndoc.md": &fstest.MapFile{
 		Data: []byte(`                     # A child markdown document called yet another`),
+	},
+	"mddocsdir/multilineothermarkdowndoc.md": &fstest.MapFile{
+		Data: []byte(
+			`
+			# First line of multiline markdown.
+			# Second line of multiline markdown.
+			`,
+		),
 	},
 }
 

@@ -64,7 +64,13 @@ func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
 		}
 
 		inclPos := incl.linePos
-		posOffset += len(incl.doc.lineContent)
+		posOffset += func() int {
+			conl := len(incl.doc.lineContent)
+			if conl > 1 {
+				conl -= 1
+			}
+			return conl
+		}()
 
 		var content []string
 		content = append(content, d.lineContent[:inclPos-1]...)
