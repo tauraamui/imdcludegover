@@ -43,7 +43,7 @@ func TestOpenNonExistantDoc(t *testing.T) {
 	is := is.New(t)
 	_, err := Open("doesnotexist.md", fsys)
 	is.True(err != nil)
-	is.Equal(err.Error(), "open doesnotexist.md: file does not exist")
+	is.Equal(err.Error(), "open doesnotexist.md: file does not exist: path: doesnotexist.md")
 }
 
 func TestResolveIncludesOfEmptyDoc(t *testing.T) {
@@ -63,12 +63,14 @@ func TestIncludesAreFoundInDocumentWithIncludes(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(len(doc.includes), 2)
 	is.Equal(doc.includes[0], include{
-		path:    "othermarkdowndoc.md",
+		path:    "mddocsdir/othermarkdowndoc.md",
+		name:    "othermarkdowndoc.md",
 		parent:  "docwithincludes.md",
 		linePos: 4,
 	})
 	is.Equal(doc.includes[1], include{
-		path:    "yetanotherothermarkdowndoc.md",
+		path:    "mddocsdir/yetanotherothermarkdowndoc.md",
+		name:    "yetanotherothermarkdowndoc.md",
 		parent:  "docwithincludes.md",
 		linePos: 9,
 	})

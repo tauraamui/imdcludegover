@@ -79,7 +79,6 @@ func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
 
 func searchEntriesFor(name string, entries []fs.DirEntry) bool {
 	for _, e := range entries {
-		fmt.Printf("MATCHING: %s AGAINST: %s\n", name, e.Name())
 		if name == e.Name() {
 			return true
 		}
