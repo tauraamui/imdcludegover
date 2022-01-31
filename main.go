@@ -24,6 +24,7 @@ func main() {
 	if err != nil {
 		logging.Fatal(err.Error())
 	}
+	defer doc.Close()
 
 	if err := doc.ResolveIncludes(opts.LookupDir); err != nil {
 		logging.Fatal(err.Error())

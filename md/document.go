@@ -10,6 +10,8 @@ import (
 	paths "path"
 	"regexp"
 	"strings"
+
+	"github.com/tacusci/logging/v2"
 )
 
 type include struct {
@@ -22,13 +24,9 @@ type include struct {
 
 type Document struct {
 	name        string
-	r           io.Reader
+	r           io.ReadCloser
 	lineContent []string
 	includes    []include
-}
-
-func New(name string, r io.Reader) *Document {
-	return &Document{name: name, r: r, includes: []include{}}
 }
 
 func newFromFile(fd fs.File) (*Document, error) {
@@ -45,7 +43,7 @@ func newFromFile(fd fs.File) (*Document, error) {
 }
 
 func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
-	if d.includes == nil || len(d.includes) == 0 {
+	if len(d.includes) == 0 {
 		return nil
 	}
 
@@ -81,6 +79,28 @@ func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
 	}
 
 	return nil
+}
+
+func (d *Document) Close() error {
+	if d == nil {
+		return nil
+	}
+
+	err := func() error {
+		if r := d.r; r != nil {
+			return r.Close()
+		}
+		return nil
+	}()
+
+	if d.includes == nil {
+		return err
+	}
+
+	for _, incl := range d.includes {
+		incl.doc.Close()
+	}
+	return err
 }
 
 func (d *Document) resolveIncludesIncludes(path string, fsyses ...fs.FS) error {
@@ -152,7 +172,12 @@ func (d *Document) parse() error {
 }
 
 func Open(name string, fsyses ...fs.FS) (*Document, error) {
-	fsys := resolveFS(".", fsyses)
+	wd, err := os.Getwd()
+	if err != nil {
+		logging.Error("unable to search for files relative to CWD: %v", err)
+		wd = "."
+	}
+	fsys := resolveFS(wd, fsyses)
 	fd, err := fsys.Open(name)
 	if err != nil {
 		return nil, fmt.Errorf("%v: path: %s", err, name)

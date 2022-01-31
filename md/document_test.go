@@ -10,6 +10,9 @@ import (
 
 var fsys = fstest.MapFS{
 	"emptydoc.md": &fstest.MapFile{},
+	"singlelinedocwithinclude.md": &fstest.MapFile{
+		Data: []byte(`#include "mddocsdir/multilineothermarkdowndoc.md"`),
+	},
 	"docwithincludes.md": &fstest.MapFile{
 		Data: []byte(`
 			# A regular markdown document
@@ -36,6 +39,7 @@ var fsys = fstest.MapFS{
 			`
 			# First line of multiline markdown.
 			# Second line of multiline markdown.
+			#include "mddocsdir/yetanotherothermarkdowndoc.md"
 			`,
 		),
 	},
@@ -45,6 +49,13 @@ func TestOpenEmptyRootMDDoc(t *testing.T) {
 	is := is.New(t)
 	_, err := Open("emptydoc.md", fsys)
 	is.NoErr(err)
+}
+
+func TestClosingOpenEmptyRootMDDoc(t *testing.T) {
+	is := is.New(t)
+	doc, err := Open("emptydoc.md", fsys)
+	is.NoErr(err)
+	is.NoErr(doc.Close())
 }
 
 func TestOpenNonExistantDoc(t *testing.T) {
@@ -59,7 +70,7 @@ func TestIncludesAreFoundInDocumentWithIncludes(t *testing.T) {
 
 	doc, err := Open("docwithincludes.md", fsys)
 	is.NoErr(err)
-	is.Equal(len(doc.includes), 2)
+	is.Equal(len(doc.includes), 3)
 	is.Equal(doc.includes[0], include{
 		path:    "mddocsdir/othermarkdowndoc.md",
 		name:    "othermarkdowndoc.md",
@@ -72,6 +83,7 @@ func TestIncludesAreFoundInDocumentWithIncludes(t *testing.T) {
 		parent:  "docwithincludes.md",
 		linePos: 9,
 	})
+	is.NoErr(doc.Close())
 }
 
 func TestIncludesAreResolved(t *testing.T) {
@@ -81,7 +93,15 @@ func TestIncludesAreResolved(t *testing.T) {
 	is.NoErr(err)
 
 	is.NoErr(doc.ResolveIncludes("mddocsdir", fsys))
+}
 
+func TestSingleLineMDWithIncludeIsResolved(t *testing.T) {
+	is := is.New(t)
+
+	doc, err := Open("singlelinedocwithinclude.md", fsys)
+	is.NoErr(err)
+
+	is.NoErr(doc.ResolveIncludes("mddocsdir", fsys))
 	for i, l := range doc.lineContent {
 		fmt.Printf("%d: %s\n", i, l)
 	}
