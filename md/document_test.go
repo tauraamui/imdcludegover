@@ -1,7 +1,6 @@
 package md
 
 import (
-	"fmt"
 	"testing"
 	"testing/fstest"
 
@@ -26,7 +25,11 @@ var fsys = fstest.MapFS{
 			#include "mddocsdir/multilineothermarkdowndoc.md"
 
 			### Another sub header
+			#include "childocwithinsamedirectoryasroot.md"
 		`),
+	},
+	"childocwithinsamedirectoryasroot.md": &fstest.MapFile{
+		Data: []byte(`                     # A child document within same directory as root`),
 	},
 	"mddocsdir/othermarkdowndoc.md": &fstest.MapFile{
 		Data: []byte(`                     # A child markdown document called other`),
@@ -70,7 +73,7 @@ func TestIncludesAreFoundInDocumentWithIncludes(t *testing.T) {
 
 	doc, err := Open("docwithincludes.md", fsys)
 	is.NoErr(err)
-	is.Equal(len(doc.includes), 3)
+	is.Equal(len(doc.includes), 4)
 	is.Equal(doc.includes[0], include{
 		path:    "mddocsdir/othermarkdowndoc.md",
 		name:    "othermarkdowndoc.md",
@@ -83,6 +86,18 @@ func TestIncludesAreFoundInDocumentWithIncludes(t *testing.T) {
 		parent:  "docwithincludes.md",
 		linePos: 9,
 	})
+	is.Equal(doc.includes[2], include{
+		path:    "mddocsdir/multilineothermarkdowndoc.md",
+		name:    "multilineothermarkdowndoc.md",
+		parent:  "docwithincludes.md",
+		linePos: 10,
+	})
+	is.Equal(doc.includes[3], include{
+		path:    "childocwithinsamedirectoryasroot.md",
+		name:    "childocwithinsamedirectoryasroot.md",
+		parent:  "docwithincludes.md",
+		linePos: 13,
+	})
 	is.NoErr(doc.Close())
 }
 
@@ -93,16 +108,4 @@ func TestIncludesAreResolved(t *testing.T) {
 	is.NoErr(err)
 
 	is.NoErr(doc.ResolveIncludes("mddocsdir", fsys))
-}
-
-func TestSingleLineMDWithIncludeIsResolved(t *testing.T) {
-	is := is.New(t)
-
-	doc, err := Open("singlelinedocwithinclude.md", fsys)
-	is.NoErr(err)
-
-	is.NoErr(doc.ResolveIncludes("mddocsdir", fsys))
-	for i, l := range doc.lineContent {
-		fmt.Printf("%d: %s\n", i, l)
-	}
 }
