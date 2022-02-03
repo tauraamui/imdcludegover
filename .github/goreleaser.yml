@@ -19,7 +19,11 @@ builds:
       - 6
       - 7
 archives:
-  - format: gz
+  - format: binary
+    replacements:
+      amd64: 64-bit
+      386: 32-bit
+      darwin: macOS
     files:
       - none*
 release:
