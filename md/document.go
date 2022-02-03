@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 
+	log "github.com/tauraamui/imdclude/logging"
+
 	"github.com/tacusci/logging/v2"
 )
 
@@ -44,6 +46,7 @@ func newFromFile(fd fs.File) (*Document, error) {
 
 func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
 	if len(d.includes) == 0 {
+		log.Printfln("[%s] no includes found", d.name)
 		return nil
 	}
 
@@ -70,6 +73,7 @@ func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
 			return conl
 		}()
 
+		log.Printfln("[%s] replacing line %d with %s's content", d.name, incl.linePos, incl.name)
 		var content []string
 		content = append(content, d.lineContent[:inclPos-1]...)
 		content = append(content, incl.doc.lineContent...)
@@ -79,6 +83,19 @@ func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
 	}
 
 	return nil
+}
+
+func (d *Document) Write(w io.StringWriter) (int, error) {
+	d.r.Close() // close original reader
+	var c int
+	for _, l := range d.lineContent {
+		cc, err := w.WriteString(l + "\n")
+		c += cc
+		if err != nil {
+			return c, err
+		}
+	}
+	return c, nil
 }
 
 func (d *Document) Close() error {
@@ -120,6 +137,7 @@ func (d *Document) openAllIncludes(fsys fs.FS) error {
 	errs := errGroup{}
 	for i := 0; i < len(d.includes); i++ {
 		ii := d.includes[i]
+		log.Printfln("[%s] opening include: %s", d.name, ii.path)
 		incl, err := Open(ii.path, fsys)
 		if err != nil {
 			errs = append(errs, err)
