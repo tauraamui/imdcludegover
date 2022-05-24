@@ -1,8 +1,11 @@
 package md
 
 import (
+	"bytes"
+	"os"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/matryer/is"
 )
@@ -108,4 +111,60 @@ func TestIncludesAreResolved(t *testing.T) {
 	is.NoErr(err)
 
 	is.NoErr(doc.ResolveIncludes("mddocsdir", fsys))
+}
+
+func TestWritingBackupDocumentHeader(t *testing.T) {
+	is := is.New(t)
+
+	now := uint32(time.Now().Unix())
+
+	buff := bytes.Buffer{}
+
+	header := backupFileHeader{
+		magicPrefix:     4839,
+		backupTimestamp: now,
+		originalPath:    "/tmp/imdclude/existing-path.bkup",
+	}
+
+	header.write(&buff)
+
+	is.Equal(buff.Len(), 42)
+
+	newHeader := backupFileHeader{}
+	newHeader.read(&buff)
+
+	is.Equal(newHeader.magicPrefix, uint16(4839))
+	is.Equal(newHeader.backupTimestamp, now)
+	is.Equal(newHeader.pathLength, uint32(len(newHeader.originalPath)))
+	is.Equal(newHeader.originalPath, "/tmp/imdclude/existing-path.bkup")
+}
+
+func TestBackupRoutine(t *testing.T) {
+	is := is.New(t)
+
+	doc := Document{
+		name: "testdoc",
+	}
+	doc.lineContent = []byte(`
+			# A regular markdown document
+
+			#include "mddocsdir/othermarkdowndoc.md"
+
+			## Some sub headings
+			> a nice inline quote
+
+			#include "mddocsdir/yetanotherothermarkdowndoc.md"
+			#include "mddocsdir/multilineothermarkdowndoc.md"
+
+			### Another sub header
+			#include "childocwithinsamedirectoryasroot.md"
+		`)
+
+	filePath, err := Backup(&doc)
+	is.NoErr(err)
+	is.True(len(filePath) > 0)
+
+	fs, err := os.Stat(filePath)
+	is.NoErr(err)
+	is.True(fs != nil)
 }

@@ -2,16 +2,21 @@ package md
 
 import (
 	"bufio"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"io/ioutil"
 	"os"
 	paths "path"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	log "github.com/tauraamui/imdclude/logging"
+	"github.com/teris-io/shortid"
 
 	"github.com/tacusci/logging/v2"
 )
@@ -27,7 +32,7 @@ type include struct {
 type Document struct {
 	name        string
 	r           io.ReadCloser
-	lineContent []string
+	lineContent []byte
 	includes    []include
 }
 
@@ -74,7 +79,7 @@ func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
 		}()
 
 		log.Printfln("[%s] replacing line %d with %s's content", d.name, incl.linePos, incl.name)
-		var content []string
+		var content []byte
 		content = append(content, d.lineContent[:inclPos-1]...)
 		content = append(content, incl.doc.lineContent...)
 		content = append(content, d.lineContent[inclPos:]...)
@@ -89,7 +94,7 @@ func (d *Document) Write(w io.StringWriter) (int, error) {
 	d.r.Close() // close original reader
 	var c int
 	for _, l := range d.lineContent {
-		cc, err := w.WriteString(l + "\n")
+		cc, err := w.WriteString(string(l))
 		c += cc
 		if err != nil {
 			return c, err
@@ -171,11 +176,11 @@ func (e errGroup) toErrOrNil() error {
 
 func (d *Document) parse() error {
 	errs := errGroup{}
-	readLineByLine(d.r, func(l string, pos int, e error) {
+	readLineByLine(d.r, func(l []byte, pos int, e error) {
 		if e != nil {
 			errs = append(errs, e)
 		}
-		if path, ok := isInclude(l); ok {
+		if path, ok := isInclude(string(l)); ok {
 			d.includes = append(d.includes, include{
 				path,
 				paths.Base(path),
@@ -184,9 +189,160 @@ func (d *Document) parse() error {
 				nil,
 			})
 		}
-		d.lineContent = append(d.lineContent, l)
+		d.lineContent = append(d.lineContent, l...)
+		d.lineContent = append(d.lineContent, []byte("\n")...)
 	})
 	return errs.toErrOrNil()
+}
+
+const backupFileHeaderMagic uint16 = 0x3532
+
+var tmpDir = filepath.Join(string(filepath.Separator), "tmp", "imdclude")
+
+func Backup(doc *Document) (string, error) {
+	err := os.MkdirAll(tmpDir, os.ModePerm)
+	if err != nil {
+		return "", err
+	}
+
+	tempFile, err := ioutil.TempFile(tmpDir, fmt.Sprintf("%s.*.bkup", doc.name))
+	if err != nil {
+		return "", err
+	}
+	defer tempFile.Close()
+
+	header := backupFileHeader{
+		magicPrefix:     backupFileHeaderMagic,
+		backupTimestamp: uint32(time.Now().Unix()),
+		originalPath:    doc.name,
+	}
+
+	header.write(tempFile)
+	tempFile.Write(doc.lineContent)
+
+	return tempFile.Name(), nil
+}
+
+type BackedUpDoc struct {
+	ID      string
+	Name    string
+	Time    int
+	Content []byte
+}
+
+func Backups(fsys ...fs.FS) ([]BackedUpDoc, error) {
+	ts, err := os.Stat(tmpDir)
+	if err != nil {
+		return nil, fmt.Errorf("unable to stat %s: %w", tmpDir, err)
+	}
+
+	if ts == nil || !ts.IsDir() {
+		return nil, fmt.Errorf("backup location %s does not exist", tmpDir)
+	}
+
+	dfs := os.DirFS(tmpDir)
+	if len(fsys) == 1 {
+		dfs = fsys[0]
+	}
+
+	backupFile, err := fs.ReadDir(dfs, ".")
+	if err != nil {
+		return nil, fmt.Errorf("unable to read backups directory: %s: %w", tmpDir, err)
+	}
+
+	foundDocs := []BackedUpDoc{}
+	for _, bfptr := range backupFile {
+		bfile, err := dfs.Open(bfptr.Name())
+		if err != nil {
+			logging.Fatal(err.Error())
+		}
+
+		header := backupFileHeader{}
+		header.read(bfile)
+
+		info, err := bfptr.Info()
+		if err != nil {
+			logging.Fatal(err.Error())
+		}
+		content := make([]byte, info.Size()-int64(header.size()))
+		if header.magicPrefix == backupFileHeaderMagic {
+			bfile.Read(content)
+			foundDocs = append(foundDocs, BackedUpDoc{
+				ID:      header.id,
+				Name:    header.originalPath,
+				Time:    int(header.backupTimestamp),
+				Content: content,
+			})
+		}
+	}
+
+	return foundDocs, nil
+}
+
+// header is 10 bytes wide
+type backupFileHeader struct {
+	magicPrefix     uint16
+	backupTimestamp uint32
+	idLength        uint32
+	id              string
+	pathLength      uint32
+	originalPath    string
+}
+
+func (h *backupFileHeader) write(w io.Writer) {
+	w.Write(uint16ToBytes(h.magicPrefix))
+	w.Write(uint32ToBytes(h.backupTimestamp))
+	genid := shortid.MustGenerate()
+	w.Write(uint32ToBytes(uint32(len(genid))))
+	w.Write([]byte(genid))
+	w.Write(uint32ToBytes(uint32(len(h.originalPath))))
+	w.Write([]byte(h.originalPath))
+}
+
+func (h *backupFileHeader) size() int {
+	return 12 + len(h.id) + len(h.originalPath)
+}
+
+func (h *backupFileHeader) read(r io.Reader) {
+	readingBuffer := make([]byte, 4)
+	r.Read(readingBuffer[:2])
+	h.magicPrefix = bytesToUint16(readingBuffer[:2])
+
+	r.Read(readingBuffer)
+	h.backupTimestamp = bytesToUint32(readingBuffer)
+
+	r.Read(readingBuffer)
+	h.idLength = bytesToUint32(readingBuffer)
+	idBytes := make([]byte, h.idLength)
+	r.Read(idBytes)
+	h.id = string(idBytes)
+
+	r.Read(readingBuffer)
+	h.pathLength = bytesToUint32(readingBuffer)
+
+	pathBytes := make([]byte, h.pathLength)
+	r.Read(pathBytes)
+	h.originalPath = string(pathBytes)
+}
+
+func bytesToUint16(b []byte) uint16 {
+	return binary.LittleEndian.Uint16(b)
+}
+
+func bytesToUint32(b []byte) uint32 {
+	return binary.LittleEndian.Uint32(b)
+}
+
+func uint16ToBytes(n uint16) []byte {
+	d := make([]byte, 2)
+	binary.LittleEndian.PutUint16(d, n)
+	return d
+}
+
+func uint32ToBytes(n uint32) []byte {
+	d := make([]byte, 4)
+	binary.LittleEndian.PutUint32(d, n)
+	return d
 }
 
 func Open(name string, fsyses ...fs.FS) (*Document, error) {
@@ -235,7 +391,7 @@ func isInclude(l string) (string, bool) {
 	return "", false
 }
 
-func readLineByLine(data io.Reader, eachLine func(string, int, error)) {
+func readLineByLine(data io.Reader, eachLine func([]byte, int, error)) {
 	rr := bufio.NewReader(data)
 	count := 0
 	for {
@@ -245,14 +401,14 @@ func readLineByLine(data io.Reader, eachLine func(string, int, error)) {
 			if err == io.EOF {
 				return
 			}
-			eachLine("", count, err)
+			eachLine(nil, count, err)
 		}
 
 		if isPrefix {
-			eachLine("", count, fmt.Errorf("line %d is too long: %v", count, err))
+			eachLine(nil, count, fmt.Errorf("line %d is too long: %v", count, err))
 		}
 
-		eachLine(string(line), count, nil)
+		eachLine(line, count, nil)
 	}
 }
 
