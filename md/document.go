@@ -30,6 +30,7 @@ type include struct {
 }
 
 type Document struct {
+	path        string
 	name        string
 	r           io.ReadCloser
 	lineContent []byte
@@ -214,7 +215,7 @@ func Backup(doc *Document) (string, error) {
 	header := backupFileHeader{
 		magicPrefix:     backupFileHeaderMagic,
 		backupTimestamp: uint32(time.Now().Unix()),
-		originalPath:    doc.name,
+		originalPath:    doc.path,
 	}
 
 	header.write(tempFile)
@@ -225,6 +226,7 @@ func Backup(doc *Document) (string, error) {
 
 type BackedUpDoc struct {
 	ID      string
+	Path    string
 	Name    string
 	Time    int
 	Content []byte
@@ -269,6 +271,7 @@ func Backups(fsys ...fs.FS) ([]BackedUpDoc, error) {
 			bfile.Read(content)
 			foundDocs = append(foundDocs, BackedUpDoc{
 				ID:      header.id,
+				Path:    header.originalPath,
 				Name:    header.originalPath,
 				Time:    int(header.backupTimestamp),
 				Content: content,
@@ -361,6 +364,8 @@ func Open(name string, fsyses ...fs.FS) (*Document, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	doc.path = filepath.Join(wd, name)
 
 	if err := doc.parse(); err != nil {
 		return nil, err
