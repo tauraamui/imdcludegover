@@ -21,15 +21,17 @@ type opts struct {
 }
 
 func backup(run bool, path string, doc *md.Document) {
-	bf, err := md.Backup(doc)
-	fmt.Printf("Backed up %s to %s: %s\n", path, bf, func() string {
+	if run {
+		bf, err := md.Backup(doc)
+		fmt.Printf("Backed up %s to %s: %s\n", path, bf, func() string {
+			if err != nil {
+				return "FAILED"
+			}
+			return "SUCCESS"
+		}())
 		if err != nil {
-			return "FAILED"
+			logging.Fatal(err.Error())
 		}
-		return "SUCCESS"
-	}())
-	if err != nil {
-		logging.Fatal(err.Error())
 	}
 }
 
@@ -54,20 +56,22 @@ func restore(backupID string) (bool, error) {
 }
 
 func listBackups(run bool) bool {
-	backupFiles, err := md.Backups()
-	if err != nil {
-		logging.Fatal(err.Error())
-	}
-
-	fmt.Printf("listing backups: %s", func() string {
-		if len(backupFiles) == 0 {
-			return "none found...\n"
+	if run {
+		backupFiles, err := md.Backups()
+		if err != nil {
+			logging.Fatal(err.Error())
 		}
-		return "\n"
-	}())
 
-	for _, bf := range backupFiles {
-		fmt.Printf("%s [%s] %s %dkb\n", bf.ID, time.Unix(int64(bf.Time), 0), bf.Name, len(bf.Content)/1000)
+		fmt.Printf("listing backups: %s", func() string {
+			if len(backupFiles) == 0 {
+				return "none found...\n"
+			}
+			return "\n"
+		}())
+
+		for _, bf := range backupFiles {
+			fmt.Printf("%s [%s] %s %dkb\n", bf.ID, time.Unix(int64(bf.Time), 0), bf.Name, len(bf.Content)/1000)
+		}
 	}
 	return run
 }

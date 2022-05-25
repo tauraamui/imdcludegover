@@ -3,6 +3,7 @@ package md
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -120,15 +121,14 @@ func TestWritingBackupDocumentHeader(t *testing.T) {
 
 	buff := bytes.Buffer{}
 
+	bkupPath := filepath.Join(tmpDir(), "existing-path.bkup")
 	header := backupFileHeader{
 		magicPrefix:     4839,
 		backupTimestamp: now,
-		originalPath:    "/tmp/imdclude/existing-path.bkup",
+		originalPath:    bkupPath,
 	}
 
 	header.write(&buff)
-
-	is.Equal(buff.Len(), 42)
 
 	newHeader := backupFileHeader{}
 	newHeader.read(&buff)
@@ -136,7 +136,7 @@ func TestWritingBackupDocumentHeader(t *testing.T) {
 	is.Equal(newHeader.magicPrefix, uint16(4839))
 	is.Equal(newHeader.backupTimestamp, now)
 	is.Equal(newHeader.pathLength, uint32(len(newHeader.originalPath)))
-	is.Equal(newHeader.originalPath, "/tmp/imdclude/existing-path.bkup")
+	is.Equal(newHeader.originalPath, bkupPath)
 }
 
 func TestBackupRoutine(t *testing.T) {

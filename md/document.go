@@ -9,7 +9,7 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"os"
-	"path"
+	"os/user"
 	paths "path"
 	"path/filepath"
 	"regexp"
@@ -199,12 +199,22 @@ func (d *Document) parse() error {
 
 const backupFileHeaderMagic uint16 = 0x3532
 
-var tmpDir = filepath.Join(string(filepath.Separator), "tmp", "imdclude")
+func tmpDir() string {
+	usr, err := user.Current()
+	if err != nil {
+		return filepath.Join(os.TempDir(), "imdclude")
+	}
+
+	return filepath.Join(usr.HomeDir, "tmp", "imdclude")
+}
 
 func Backup(doc *Document) (string, error) {
+	tmpDir := tmpDir()
 	err := os.MkdirAll(tmpDir, os.ModePerm)
 	if err != nil {
-		return "", err
+		if !strings.Contains(err.Error(), "file exists") {
+			return "", err
+		}
 	}
 
 	tempFile, err := ioutil.TempFile(tmpDir, fmt.Sprintf("%s.*.bkup", doc.name))
@@ -226,7 +236,7 @@ func Backup(doc *Document) (string, error) {
 }
 
 func Restore(doc BackedUpDoc) error {
-	if err := os.MkdirAll(path.Dir(doc.Path), os.ModePerm); err != nil {
+	if err := os.MkdirAll(paths.Dir(doc.Path), os.ModePerm); err != nil {
 		return err
 	}
 
@@ -252,6 +262,7 @@ type BackedUpDoc struct {
 }
 
 func Backups(fsys ...fs.FS) ([]BackedUpDoc, error) {
+	tmpDir := tmpDir()
 	ts, err := os.Stat(tmpDir)
 	if err != nil {
 		return nil, fmt.Errorf("unable to stat %s: %w", tmpDir, err)
