@@ -139,8 +139,25 @@ func TestWritingBackupDocumentHeader(t *testing.T) {
 	is.Equal(newHeader.originalPath, bkupPath)
 }
 
+func setupTestTempDir() func() error {
+	dirpath := filepath.Join(os.TempDir(), "imdclude", "tests")
+
+	oldTempRef := tmpDir
+	tmpDir = func() string {
+		return dirpath
+	}
+
+	return func() error {
+		tmpDir = oldTempRef
+		return os.RemoveAll(dirpath)
+	}
+}
+
 func TestBackupRoutine(t *testing.T) {
 	is := is.New(t)
+
+	resetTmpDir := setupTestTempDir()
+	defer resetTmpDir()
 
 	doc := Document{
 		name: "testdoc",
