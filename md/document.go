@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"os"
+	"path"
 	paths "path"
 	"path/filepath"
 	"regexp"
@@ -222,6 +223,24 @@ func Backup(doc *Document) (string, error) {
 	tempFile.Write(doc.lineContent)
 
 	return tempFile.Name(), nil
+}
+
+func Restore(doc BackedUpDoc) error {
+	if err := os.MkdirAll(path.Dir(doc.Path), os.ModePerm); err != nil {
+		return err
+	}
+
+	rf, err := os.OpenFile(doc.Path, os.O_CREATE|os.O_RDWR, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	rf.Truncate(0)
+
+	if _, err := rf.Write(doc.Content); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type BackedUpDoc struct {
