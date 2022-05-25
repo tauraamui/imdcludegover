@@ -12,7 +12,7 @@ import (
 )
 
 type opts struct {
-	Doc       string `short:"f" long:"file" description:"Target file to import includes into."`
+	Doc       string `short:"f" long:"file" description:"File to import includes into."`
 	LookupDir string `short:"d" long:"dir" description:"Path to dir containing markdown files to search." default:"."`
 	Backup    bool   `short:"b" long:"backup" description:"Backup the original target document beforehand."`
 	List      bool   `short:"l" long:"list" description:"List all available backups."`
