@@ -160,11 +160,19 @@ func TestBackupRoutine(t *testing.T) {
 			#include "childocwithinsamedirectoryasroot.md"
 		`)
 
-	filePath, err := Backup(&doc)
+	id, filePath, err := Backup(&doc)
 	is.NoErr(err)
 	is.True(len(filePath) > 0)
 
 	fs, err := os.Stat(filePath)
 	is.NoErr(err)
 	is.True(fs != nil)
+
+	bkups, err := Backups()
+	is.NoErr(err)
+	for _, bkup := range bkups {
+		if bkup.ID == id {
+			is.Equal(doc.lineContent, bkup.Content)
+		}
+	}
 }

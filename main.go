@@ -22,8 +22,8 @@ type opts struct {
 
 func backup(run bool, path string, doc *md.Document) {
 	if run {
-		bf, err := md.Backup(doc)
-		fmt.Printf("Backed up %s to %s: %s\n", path, bf, func() string {
+		id, bf, err := md.Backup(doc)
+		fmt.Printf("Backed up %s to %s %s: %s\n", id, path, bf, func() string {
 			if err != nil {
 				return "FAILED"
 			}

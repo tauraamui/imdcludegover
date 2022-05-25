@@ -199,7 +199,7 @@ func (d *Document) parse() error {
 
 const backupFileHeaderMagic uint16 = 0x3532
 
-func tmpDir() string {
+var tmpDir = func() string {
 	usr, err := user.Current()
 	if err != nil {
 		return filepath.Join(os.TempDir(), "imdclude")
@@ -208,18 +208,18 @@ func tmpDir() string {
 	return filepath.Join(usr.HomeDir, "tmp", "imdclude")
 }
 
-func Backup(doc *Document) (string, error) {
+func Backup(doc *Document) (id string, path string, err error) {
 	tmpDir := tmpDir()
-	err := os.MkdirAll(tmpDir, os.ModePerm)
+	err = os.MkdirAll(tmpDir, os.ModePerm)
 	if err != nil {
 		if !strings.Contains(err.Error(), "file exists") {
-			return "", err
+			return "", "", err
 		}
 	}
 
 	tempFile, err := ioutil.TempFile(tmpDir, fmt.Sprintf("%s.*.bkup", doc.name))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer tempFile.Close()
 
@@ -232,7 +232,7 @@ func Backup(doc *Document) (string, error) {
 	header.write(tempFile)
 	tempFile.Write(doc.lineContent)
 
-	return tempFile.Name(), nil
+	return header.id, tempFile.Name(), nil
 }
 
 func Restore(doc BackedUpDoc) error {
@@ -240,7 +240,7 @@ func Restore(doc BackedUpDoc) error {
 		return err
 	}
 
-	rf, err := os.OpenFile(doc.Path, os.O_CREATE|os.O_RDWR, os.ModePerm)
+	rf, err := os.Open(doc.Path)
 	if err != nil {
 		return err
 	}
@@ -326,6 +326,7 @@ func (h *backupFileHeader) write(w io.Writer) {
 	w.Write(uint16ToBytes(h.magicPrefix))
 	w.Write(uint32ToBytes(h.backupTimestamp))
 	genid := shortid.MustGenerate()
+	h.id = genid
 	w.Write(uint32ToBytes(uint32(len(genid))))
 	w.Write([]byte(genid))
 	w.Write(uint32ToBytes(uint32(len(h.originalPath))))
@@ -333,7 +334,7 @@ func (h *backupFileHeader) write(w io.Writer) {
 }
 
 func (h *backupFileHeader) size() int {
-	return 12 + len(h.id) + len(h.originalPath)
+	return 14 + len(h.id) + len(h.originalPath)
 }
 
 func (h *backupFileHeader) read(r io.Reader) {
