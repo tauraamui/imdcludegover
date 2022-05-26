@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/matryer/is"
-	"github.com/stretchr/testify/assert"
 )
 
 var fsys = fstest.MapFS{
@@ -261,7 +260,6 @@ func TestResolveIncludesSuccess(t *testing.T) {
 }
 
 func TestBackupRoutine(t *testing.T) {
-	t.Skip()
 	is := is.New(t)
 
 	resetTmpDir := setupTestTempDir()
@@ -300,8 +298,7 @@ func TestBackupRoutine(t *testing.T) {
 	is.NoErr(err)
 	for _, bkup := range bkups {
 		if bkup.ID == id {
-			assert.EqualValues(t, doc.lineContent, bkup.Content)
-			// is.Equal(doc.lineContent, bkup.Content)
+			is.Equal(doc.lineContent, bkup.Content)
 		}
 	}
 }
