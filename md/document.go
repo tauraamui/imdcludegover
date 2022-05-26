@@ -2,6 +2,7 @@ package md
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -34,7 +35,7 @@ type Document struct {
 	path        string
 	name        string
 	r           io.ReadCloser
-	lineContent []byte
+	lineContent [][]byte
 	includes    []include
 }
 
@@ -71,7 +72,7 @@ func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
 			continue
 		}
 
-		inclPos := incl.linePos
+		// inclPos := incl.linePos
 		posOffset += func() int {
 			conl := len(incl.doc.lineContent)
 			if conl > 1 {
@@ -81,12 +82,12 @@ func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
 		}()
 
 		log.Printfln("[%s] replacing line %d with %s's content", d.name, incl.linePos, incl.name)
-		var content []byte
-		content = append(content, d.lineContent[:inclPos-1]...)
-		content = append(content, incl.doc.lineContent...)
-		content = append(content, d.lineContent[inclPos:]...)
+		// var content []byte
+		// content = append(content, d.lineContent[:inclPos-1]...)
+		// content = append(content, incl.doc.lineContent...)
+		// content = append(content, d.lineContent[inclPos:]...)
 
-		d.lineContent = content
+		// d.lineContent = content
 	}
 
 	return nil
@@ -191,8 +192,7 @@ func (d *Document) parse() error {
 				nil,
 			})
 		}
-		d.lineContent = append(d.lineContent, l...)
-		d.lineContent = append(d.lineContent, []byte("\n")...)
+		d.lineContent = append(d.lineContent, l)
 	})
 	return errs.toErrOrNil()
 }
@@ -230,7 +230,7 @@ func Backup(doc *Document) (id string, path string, err error) {
 	}
 
 	header.write(tempFile)
-	tempFile.Write(doc.lineContent)
+	tempFile.Write(mergeLines(doc.lineContent))
 
 	return header.id, tempFile.Name(), nil
 }
@@ -246,7 +246,7 @@ func Restore(doc BackedUpDoc) error {
 	}
 	rf.Truncate(0)
 
-	if _, err := rf.Write(doc.Content); err != nil {
+	if _, err := rf.Write(mergeLines(doc.Content)); err != nil {
 		return err
 	}
 
@@ -258,7 +258,7 @@ type BackedUpDoc struct {
 	Path    string
 	Name    string
 	Time    int
-	Content []byte
+	Content [][]byte
 }
 
 func Backups(fsys ...fs.FS) ([]BackedUpDoc, error) {
@@ -304,7 +304,7 @@ func Backups(fsys ...fs.FS) ([]BackedUpDoc, error) {
 				Path:    header.originalPath,
 				Name:    header.originalPath,
 				Time:    int(header.backupTimestamp),
-				Content: content,
+				Content: splitLines(content),
 			})
 		}
 	}
@@ -445,6 +445,45 @@ func readLineByLine(data io.Reader, eachLine func([]byte, int, error)) {
 		}
 
 		eachLine(line, count, nil)
+	}
+}
+
+func mergeLines(b [][]byte) []byte {
+	dest := []byte{}
+	s := len(b)
+	for i, l := range b {
+		if i+1 < s {
+			l = append(l, []byte("\n")...)
+		}
+		dest = append(dest, l...)
+	}
+	return dest
+}
+
+func splitLines(b []byte) [][]byte {
+	dest := [][]byte{}
+	rr := bufio.NewReaderSize(bytes.NewBuffer(b), len(b))
+	count := 0
+
+	lineBuffer := []byte{}
+	for {
+		count++
+		line, isPrefix, err := rr.ReadLine()
+		if err != nil && err == io.EOF {
+			return dest
+		}
+
+		if isPrefix {
+			lineBuffer = append(lineBuffer, line...)
+			continue
+		}
+
+		if lineBuffer != nil {
+			dest = append(dest, append(lineBuffer, line...))
+			continue
+		}
+
+		dest = append(dest, line)
 	}
 }
 
