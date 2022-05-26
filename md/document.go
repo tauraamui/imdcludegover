@@ -429,7 +429,9 @@ func isInclude(l string) (string, bool) {
 
 func readLineByLine(data io.Reader, eachLine func([]byte, int, error)) {
 	rr := bufio.NewReader(data)
+
 	count := 0
+	lineBuffer := []byte{}
 	for {
 		count++
 		line, isPrefix, err := rr.ReadLine()
@@ -441,7 +443,13 @@ func readLineByLine(data io.Reader, eachLine func([]byte, int, error)) {
 		}
 
 		if isPrefix {
-			eachLine(nil, count, fmt.Errorf("line %d is too long: %v", count, err))
+			lineBuffer = append(lineBuffer, line...)
+			continue
+		}
+
+		if lineBuffer != nil {
+			eachLine(append(lineBuffer, line...), count, nil)
+			continue
 		}
 
 		eachLine(line, count, nil)
@@ -463,28 +471,15 @@ func mergeLines(b [][]byte) []byte {
 func splitLines(b []byte) [][]byte {
 	dest := [][]byte{}
 	rr := bufio.NewReaderSize(bytes.NewBuffer(b), len(b))
-	count := 0
 
-	lineBuffer := []byte{}
-	for {
-		count++
-		line, isPrefix, err := rr.ReadLine()
-		if err != nil && err == io.EOF {
-			return dest
+	readLineByLine(rr, func(b []byte, i int, err error) {
+		if err != nil {
+			return
 		}
+		dest = append(dest, b)
+	})
 
-		if isPrefix {
-			lineBuffer = append(lineBuffer, line...)
-			continue
-		}
-
-		if lineBuffer != nil {
-			dest = append(dest, append(lineBuffer, line...))
-			continue
-		}
-
-		dest = append(dest, line)
-	}
+	return dest
 }
 
 func resolveFS(defaultRoot string, fsyses []fs.FS) fs.FS {
