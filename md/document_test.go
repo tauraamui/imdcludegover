@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/matryer/is"
+	"github.com/stretchr/testify/assert"
 )
 
 var fsys = fstest.MapFS{
@@ -153,6 +154,82 @@ func setupTestTempDir() func() error {
 	}
 }
 
+func writeTestMD(path string, content []byte) (func(), error) {
+	testFile, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+	closeFileFunc := func() { testFile.Close() }
+
+	_, err = testFile.Write(content)
+	if err != nil {
+		return closeFileFunc, err
+	}
+
+	return closeFileFunc, nil
+}
+
+func createTestMarkdownFile(is *is.I, name string, content []byte) {
+	close, err := writeTestMD(name, content)
+	is.NoErr(err)
+	if close != nil {
+		close()
+	}
+}
+
+func TestResolveIncludesSuccess(t *testing.T) {
+	is := is.New(t)
+
+	resetTmpDir := setupTestTempDir()
+	defer resetTmpDir()
+
+	tmpDir := tmpDir()
+	is.NoErr(os.MkdirAll(tmpDir, os.ModePerm))
+
+	readmeFilePath := filepath.Join(tmpDir, "README.md")
+	createTestMarkdownFile(is, readmeFilePath, []byte(
+		`# A regular markdown document
+
+		#include "othermarkdowndoc.md"
+
+		## Some sub headings
+		> a nice inline quote`,
+	))
+
+	createTestMarkdownFile(is, filepath.Join(tmpDir, "othermarkdowndoc.md"), []byte(
+		`# Another markdown document, called other 
+
+		## This is a different subheading
+		A non-formatted normal line of text!`,
+	))
+
+	fd, err := os.Open(readmeFilePath)
+	is.NoErr(err)
+	defer fd.Close()
+
+	doc, err := newFromFile(fd)
+	is.NoErr(err)
+	defer doc.Close()
+
+	doc.path = readmeFilePath
+	is.NoErr(doc.parse())
+	is.Equal(len(doc.includes), 1)
+	is.Equal(doc.includes[0].linePos, 3)
+
+	is.NoErr(doc.ResolveIncludes(tmpDir))
+	is.Equal(string(doc.lineContent),
+		`# A regular markdown document
+
+		# Another markdown document, called other
+
+		## This is a different subheading
+		A non-formatted normal line of text!
+
+		## Some sub headings
+		> a nice inline quote`,
+	)
+}
+
 func TestBackupRoutine(t *testing.T) {
 	is := is.New(t)
 
@@ -162,6 +239,7 @@ func TestBackupRoutine(t *testing.T) {
 	doc := Document{
 		name: "testdoc",
 	}
+
 	doc.lineContent = []byte(`
 			# A regular markdown document
 
@@ -189,7 +267,8 @@ func TestBackupRoutine(t *testing.T) {
 	is.NoErr(err)
 	for _, bkup := range bkups {
 		if bkup.ID == id {
-			is.Equal(doc.lineContent, bkup.Content)
+			assert.EqualValues(t, doc.lineContent, bkup.Content)
+			// is.Equal(doc.lineContent, bkup.Content)
 		}
 	}
 }
