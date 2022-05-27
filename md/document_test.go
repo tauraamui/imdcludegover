@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/matryer/is"
+	"github.com/tauraamui/imdclude/logging"
 )
 
 var fsys = fstest.MapFS{
@@ -206,9 +207,10 @@ func createTestMarkdownFile(is *is.I, name string, content []byte) {
 }
 
 func TestResolveIncludesSuccess(t *testing.T) {
-	t.Skip()
+	// t.Skip()
 	is := is.New(t)
 
+	logging.OUTPUT = true
 	resetTmpDir := setupTestTempDir()
 	defer resetTmpDir()
 
@@ -216,21 +218,30 @@ func TestResolveIncludesSuccess(t *testing.T) {
 	is.NoErr(os.MkdirAll(tmpDir, os.ModePerm))
 
 	readmeFilePath := filepath.Join(tmpDir, "README.md")
-	createTestMarkdownFile(is, readmeFilePath, []byte(
-		`# A regular markdown document
+	// createTestMarkdownFile(is, readmeFilePath, []byte(
+	// 	`# A regular markdown document
 
-		#include "othermarkdowndoc.md"
+	// 	#include "othermarkdowndoc.md"
 
-		## Some sub headings
-		> a nice inline quote`,
-	))
+	// 	## Some sub headings
+	// 	> a nice inline quote`,
+	// ))
 
-	createTestMarkdownFile(is, filepath.Join(tmpDir, "othermarkdowndoc.md"), []byte(
-		`# Another markdown document, called other 
+	createTestMarkdownFile(is, readmeFilePath, mergeLines([][]byte{
+		[]byte("# A regular markdown document"),
+		[]byte("\n"),
+		[]byte(`#include "othermarkdowndoc.md"`),
+		[]byte("\n"),
+		[]byte("## Some sub headings"),
+		[]byte("> a nice inline quote"),
+	}))
 
-		## This is a different subheading
-		A non-formatted normal line of text!`,
-	))
+	createTestMarkdownFile(is, filepath.Join(tmpDir, "othermarkdowndoc.md"), mergeLines([][]byte{
+		[]byte("# Another markdown document, called other"),
+		[]byte("\n"),
+		[]byte("## This is a different subheading"),
+		[]byte("A non-formatted normal line of text!"),
+	}))
 
 	fd, err := os.Open(readmeFilePath)
 	is.NoErr(err)
@@ -243,20 +254,20 @@ func TestResolveIncludesSuccess(t *testing.T) {
 	doc.path = readmeFilePath
 	is.NoErr(doc.parse())
 	is.Equal(len(doc.includes), 1)
-	is.Equal(doc.includes[0].linePos, 3)
+	is.Equal(doc.includes[0].linePos, 4)
 
 	is.NoErr(doc.ResolveIncludes(tmpDir))
-	is.Equal(string(mergeLines(doc.lineContent)),
-		`# A regular markdown document
-
-		# Another markdown document, called other
-
-		## This is a different subheading
-		A non-formatted normal line of text!
-
-		## Some sub headings
-		> a nice inline quote`,
-	)
+	is.Equal(mergeLines(doc.lineContent), mergeLines([][]byte{
+		[]byte("# A regular markdown document"),
+		[]byte("\n"),
+		[]byte("# Another markdown document, called other"),
+		[]byte("\n"),
+		[]byte("## This is a different subheading"),
+		[]byte("A non-formatted normal line of text!"),
+		[]byte("\n"),
+		[]byte("## Some sub headings"),
+		[]byte("> a nice inline quote"),
+	}))
 }
 
 func TestBackupRoutine(t *testing.T) {

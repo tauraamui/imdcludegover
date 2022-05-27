@@ -66,31 +66,51 @@ func (d *Document) ResolveIncludes(path string, fsyses ...fs.FS) error {
 		return err
 	}
 
+	if err := d.addIncludesContentToDoc(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func calcOffset(contentSize int) int {
+	if contentSize > 1 {
+		contentSize -= 1
+	}
+	return contentSize
+}
+
+func (d *Document) addIncludesContentToDoc() error {
+	errs := errGroup{}
 	posOffset := 0
 	for _, incl := range d.includes {
 		if incl.doc == nil {
 			continue
 		}
 
-		// inclPos := incl.linePos
-		posOffset += func() int {
-			conl := len(incl.doc.lineContent)
-			if conl > 1 {
-				conl -= 1
+		// recursively ensure sub includes children are resolved first
+		if err := incl.doc.addIncludesContentToDoc(); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		inclPos := incl.linePos + posOffset
+		content := [][]byte{}
+		content = append(content, d.lineContent[:inclPos-1]...)
+		content = append(content, incl.doc.lineContent...)
+		floorTopIndex := func(pos, size int) int {
+			if pos > size {
+				pos = size
 			}
-			return conl
-		}()
+			return pos
+		}
+		content = append(content, d.lineContent[floorTopIndex(inclPos, len(d.lineContent)):]...)
 
-		log.Printfln("[%s] replacing line %d with %s's content", d.name, incl.linePos, incl.name)
-		// var content []byte
-		// content = append(content, d.lineContent[:inclPos-1]...)
-		// content = append(content, incl.doc.lineContent...)
-		// content = append(content, d.lineContent[inclPos:]...)
-
-		// d.lineContent = content
+		d.lineContent = content
+		posOffset += calcOffset(len(incl.doc.lineContent))
 	}
 
-	return nil
+	return errs.toErrOrNil()
 }
 
 func (d *Document) Write(w io.StringWriter) (int, error) {
