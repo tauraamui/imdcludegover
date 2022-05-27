@@ -260,7 +260,7 @@ func Restore(doc BackedUpDoc) error {
 		return err
 	}
 
-	rf, err := os.Open(doc.Path)
+	rf, err := os.OpenFile(doc.Path, os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		return err
 	}
