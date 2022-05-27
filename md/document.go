@@ -113,11 +113,11 @@ func (d *Document) addIncludesContentToDoc() error {
 	return errs.toErrOrNil()
 }
 
-func (d *Document) Write(w io.StringWriter) (int, error) {
+func (d *Document) Write(w io.Writer) (int, error) {
 	d.r.Close() // close original reader
 	var c int
 	for _, l := range d.lineContent {
-		cc, err := w.WriteString(string(l))
+		cc, err := w.Write(append(l, byte('\n')))
 		c += cc
 		if err != nil {
 			return c, err

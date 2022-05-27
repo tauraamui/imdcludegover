@@ -218,14 +218,6 @@ func TestResolveIncludesSuccess(t *testing.T) {
 	is.NoErr(os.MkdirAll(tmpDir, os.ModePerm))
 
 	readmeFilePath := filepath.Join(tmpDir, "README.md")
-	// createTestMarkdownFile(is, readmeFilePath, []byte(
-	// 	`# A regular markdown document
-
-	// 	#include "othermarkdowndoc.md"
-
-	// 	## Some sub headings
-	// 	> a nice inline quote`,
-	// ))
 
 	createTestMarkdownFile(is, readmeFilePath, mergeLines([][]byte{
 		[]byte("# A regular markdown document"),
