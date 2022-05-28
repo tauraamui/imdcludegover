@@ -7,8 +7,8 @@ import (
 
 	"github.com/jessevdk/go-flags"
 	"github.com/tacusci/logging/v2"
-	log "github.com/tauraamui/imdclude/logging"
-	"github.com/tauraamui/imdclude/md"
+	log "github.com/tauraamui/imdclude/pkg/logging"
+	"github.com/tauraamui/imdclude/pkg/md"
 )
 
 type opts struct {

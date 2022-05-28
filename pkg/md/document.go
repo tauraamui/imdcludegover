@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/tauraamui/imdclude/logging"
+	log "github.com/tauraamui/imdclude/pkg/logging"
 	"github.com/teris-io/shortid"
 
 	"github.com/tacusci/logging/v2"

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/matryer/is"
-	"github.com/tauraamui/imdclude/logging"
+	"github.com/tauraamui/imdclude/pkg/logging"
 )
 
 var fsys = fstest.MapFS{
