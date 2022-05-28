@@ -37,6 +37,8 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       - name: goreleaser
         if: success()
         uses: docker://goreleaser/goreleaser:latest
