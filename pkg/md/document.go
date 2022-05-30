@@ -117,7 +117,10 @@ func (d *Document) Write(w io.Writer) (int, error) {
 	d.r.Close() // close original reader
 	var c int
 	for _, l := range d.lineContent {
-		cc, err := w.Write(append(l, byte('\n')))
+		if !bytes.HasSuffix(l, []byte("\n")) {
+			l = append(l, byte('\n'))
+		}
+		cc, err := w.Write(l)
 		c += cc
 		if err != nil {
 			return c, err
