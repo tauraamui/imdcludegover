@@ -329,6 +329,37 @@ var resolveIncludeTests = []resolveIncludesTest{
 			[]byte("Some other line to end first md file with"),
 		}),
 	},
+	{
+		title: "Includes within sub include within sub include but with padding last line",
+		targetDocumentContentToResolve: mergeLines([][]byte{
+			[]byte("# An example heading"),
+			[]byte(`#include "markdowndocument.md"`),
+			[]byte("Some other line to end first md file with"),
+		}),
+		otherMarkdownFiles: map[string][]byte{
+			"markdowndocument.md": mergeLines([][]byte{
+				[]byte("#Markdown document with sub includes"),
+				[]byte(`#include "submarkdowndocument.md"`),
+				[]byte("markdown document with sub includes padding line"),
+			}),
+			"submarkdowndocument.md": mergeLines([][]byte{
+				[]byte("# Sub markdown document"),
+				[]byte(`#include "subsubmarkdowndocument.md"`),
+				[]byte("sub markdown document padding line"),
+			}),
+			"subsubmarkdowndocument.md": mergeLines([][]byte{
+				[]byte("# Sub sub markdown document"),
+			}),
+		},
+		expectedNumberOfResolvedIncludes: 1,
+		expectedResolutionResult: mergeLines([][]byte{
+			[]byte("# An example heading"),
+			[]byte("# Sub markdown document"),
+			[]byte("# Sub sub markdown document"),
+			[]byte("sub markdown document padding line"),
+			[]byte("Some other line to end first md file with"),
+		}),
+	},
 }
 
 func TestTableForResolvingIncludes(t *testing.T) {
