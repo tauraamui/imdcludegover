@@ -314,7 +314,7 @@ var resolveIncludeTests = []resolveIncludesTest{
 		}),
 		otherMarkdownFiles: map[string][]byte{
 			"markdowndocument.md": mergeLines([][]byte{
-				[]byte("#Markdown document with sub includes"),
+				[]byte("# Markdown document with sub includes"),
 				[]byte(`#include "submarkdowndocument.md"`),
 			}),
 			"submarkdowndocument.md": mergeLines([][]byte{
@@ -324,7 +324,7 @@ var resolveIncludeTests = []resolveIncludesTest{
 		expectedNumberOfResolvedIncludes: 1,
 		expectedResolutionResult: mergeLines([][]byte{
 			[]byte("# An example heading"),
-			[]byte("#Markdown document with sub includes"),
+			[]byte("# Markdown document with sub includes"),
 			[]byte("# Sub markdown document"),
 			[]byte("Some other line to end first md file with"),
 		}),
@@ -363,14 +363,14 @@ var resolveIncludeTests = []resolveIncludesTest{
 }
 
 func TestTableForResolvingIncludes(t *testing.T) {
-	is := is.New(t)
+	is := is.NewRelaxed(t)
 	logging.OUTPUT = true
 	resetTmpDir := setupTestTempDir()
 	defer resetTmpDir()
 
 	for _, tt := range resolveIncludeTests {
 		t.Run(tt.title, func(t *testing.T) {
-			runResolveIncludesTableTest(is, tt)
+			runResolveIncludesTableTest(is.New(t), tt)
 		})
 	}
 }
@@ -398,9 +398,9 @@ func runResolveIncludesTableTest(is *is.I, tt resolveIncludesTest) {
 	doc.path = readmeFilePath
 	is.NoErr(doc.parse())
 
-	is.Equal(tt.expectedNumberOfResolvedIncludes, len(doc.includes))                   // expected number of resolved includes
-	is.NoErr(doc.ResolveIncludes(tmpDir))                                              // resolving includes for root doc failed
-	is.Equal(string(tt.expectedResolutionResult), string(mergeLines(doc.lineContent))) // expected resolution value does not match
+	is.Equal(tt.expectedNumberOfResolvedIncludes, len(doc.includes)) // expected number of resolved includes
+	is.NoErr(doc.ResolveIncludes(tmpDir))                            // resolving includes for root doc failed
+	is.Equal("\n"+string(tt.expectedResolutionResult)+"\n", "\n"+string(mergeLines(doc.lineContent))+"\n")
 }
 
 func TestBackupRoutine(t *testing.T) {
