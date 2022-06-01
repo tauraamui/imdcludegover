@@ -338,7 +338,7 @@ var resolveIncludeTests = []resolveIncludesTest{
 		}),
 		otherMarkdownFiles: map[string][]byte{
 			"markdowndocument.md": mergeLines([][]byte{
-				[]byte("#Markdown document with sub includes"),
+				[]byte("# Markdown document with sub includes"),
 				[]byte(`#include "submarkdowndocument.md"`),
 				[]byte("markdown document with sub includes padding line"),
 			}),
@@ -354,9 +354,11 @@ var resolveIncludeTests = []resolveIncludesTest{
 		expectedNumberOfResolvedIncludes: 1,
 		expectedResolutionResult: mergeLines([][]byte{
 			[]byte("# An example heading"),
+			[]byte("# Markdown document with sub includes"),
 			[]byte("# Sub markdown document"),
 			[]byte("# Sub sub markdown document"),
 			[]byte("sub markdown document padding line"),
+			[]byte("markdown document with sub includes padding line"),
 			[]byte("Some other line to end first md file with"),
 		}),
 	},
