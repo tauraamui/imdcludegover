@@ -305,6 +305,30 @@ var resolveIncludeTests = []resolveIncludesTest{
 			[]byte("probably some other padding content"),
 		}),
 	},
+	{
+		title: "Includes within sub include",
+		targetDocumentContentToResolve: mergeLines([][]byte{
+			[]byte("# An example heading"),
+			[]byte(`#include "markdowndocument.md"`),
+			[]byte("Some other line to end first md file with"),
+		}),
+		otherMarkdownFiles: map[string][]byte{
+			"markdowndocument.md": mergeLines([][]byte{
+				[]byte("#Markdown document with sub includes"),
+				[]byte(`#include "submarkdowndocument.md"`),
+			}),
+			"submarkdowndocument.md": mergeLines([][]byte{
+				[]byte("# Sub markdown document"),
+			}),
+		},
+		expectedNumberOfResolvedIncludes: 1,
+		expectedResolutionResult: mergeLines([][]byte{
+			[]byte("# An example heading"),
+			[]byte("#Markdown document with sub includes"),
+			[]byte("# Sub markdown document"),
+			[]byte("Some other line to end first md file with"),
+		}),
+	},
 }
 
 func TestTableForResolvingIncludes(t *testing.T) {
