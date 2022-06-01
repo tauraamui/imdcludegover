@@ -206,34 +206,131 @@ func createTestMarkdownFile(is *is.I, name string, content []byte) {
 	}
 }
 
-func TestResolveIncludesSuccess(t *testing.T) {
-	// t.Skip()
-	is := is.New(t)
+type resolveIncludesTest struct {
+	title                            string
+	targetDocumentContentToResolve   []byte
+	otherMarkdownFiles               map[string][]byte
+	expectedNumberOfResolvedIncludes int
+	expectedResolutionResult         []byte
+}
 
+var resolveIncludeTests = []resolveIncludesTest{
+	{
+		title: "Single include of 'othermarkdowndoc.md' resolves correctly",
+		targetDocumentContentToResolve: mergeLines([][]byte{
+			[]byte("# A regular markdown document"),
+			[]byte("\n"),
+			[]byte(`#include "othermarkdowndoc.md"`),
+			[]byte("\n"),
+			[]byte("## Some sub headings"),
+			[]byte("> a nice inline quote"),
+		}),
+		otherMarkdownFiles: map[string][]byte{
+			"othermarkdowndoc.md": mergeLines([][]byte{
+				[]byte("# Another markdown document, called other"),
+				[]byte("\n"),
+				[]byte("## This is a different subheading"),
+				[]byte("A non-formatted normal line of text!"),
+			}),
+		},
+		expectedNumberOfResolvedIncludes: 1,
+		expectedResolutionResult: mergeLines([][]byte{
+			[]byte("# A regular markdown document"),
+			[]byte("\n"),
+			[]byte("# Another markdown document, called other"),
+			[]byte("\n"),
+			[]byte("## This is a different subheading"),
+			[]byte("A non-formatted normal line of text!"),
+			[]byte("\n"),
+			[]byte("## Some sub headings"),
+			[]byte("> a nice inline quote"),
+		}),
+	},
+	{
+		title: "Multiple single nesting of includes of '.md' files resolves correctly",
+		targetDocumentContentToResolve: mergeLines([][]byte{
+			[]byte("# A regular markdown document"),
+			[]byte("\n"),
+			[]byte(`#include "othermarkdowndoc.md"`),
+			[]byte("\n"),
+			[]byte("## Some sub headings"),
+			[]byte(`#include "secondothermarkdowndoc.md"`),
+			[]byte("> a nice inline quote"),
+			[]byte("random padding content"),
+			[]byte("\n"),
+			[]byte(`#include "thirdothermarkdowndoc.md"`),
+			[]byte("probably some other padding content"),
+		}),
+		otherMarkdownFiles: map[string][]byte{
+			"othermarkdowndoc.md": mergeLines([][]byte{
+				[]byte("# Another markdown document, called other"),
+				[]byte("\n"),
+				[]byte("## This is a different subheading"),
+				[]byte("A non-formatted normal line of text!"),
+			}),
+			"secondothermarkdowndoc.md": mergeLines([][]byte{
+				[]byte("# Second markdown document, called other"),
+				[]byte("### Yet another sub heading"),
+				[]byte("\n"),
+				[]byte("A non-formatted normal line of text!"),
+			}),
+			"thirdothermarkdowndoc.md": mergeLines([][]byte{
+				[]byte("# Third markdown document, called other"),
+				[]byte("\n"),
+				[]byte("Content line with some example data"),
+				[]byte("A non-formatted normal line of text!"),
+			}),
+		},
+		expectedNumberOfResolvedIncludes: 3,
+		expectedResolutionResult: mergeLines([][]byte{
+			[]byte("# A regular markdown document"),
+			[]byte("\n"),
+			[]byte("# Another markdown document, called other"),
+			[]byte("\n"),
+			[]byte("## This is a different subheading"),
+			[]byte("A non-formatted normal line of text!"),
+			[]byte("\n"),
+			[]byte("## Some sub headings"),
+			[]byte("# Second markdown document, called other"),
+			[]byte("### Yet another sub heading"),
+			[]byte("\n"),
+			[]byte("A non-formatted normal line of text!"),
+			[]byte("> a nice inline quote"),
+			[]byte("random padding content"),
+			[]byte("\n"),
+			[]byte("# Third markdown document, called other"),
+			[]byte("\n"),
+			[]byte("Content line with some example data"),
+			[]byte("A non-formatted normal line of text!"),
+			[]byte("probably some other padding content"),
+		}),
+	},
+}
+
+func TestTableForResolvingIncludes(t *testing.T) {
+	is := is.New(t)
 	logging.OUTPUT = true
 	resetTmpDir := setupTestTempDir()
 	defer resetTmpDir()
 
+	for _, tt := range resolveIncludeTests {
+		t.Run(tt.title, func(t *testing.T) {
+			runResolveIncludesTableTest(is, tt)
+		})
+	}
+}
+
+func runResolveIncludesTableTest(is *is.I, tt resolveIncludesTest) {
 	tmpDir := tmpDir()
+	os.RemoveAll(tmpDir)
 	is.NoErr(os.MkdirAll(tmpDir, os.ModePerm))
 
 	readmeFilePath := filepath.Join(tmpDir, "README.md")
+	createTestMarkdownFile(is, readmeFilePath, tt.targetDocumentContentToResolve)
 
-	createTestMarkdownFile(is, readmeFilePath, mergeLines([][]byte{
-		[]byte("# A regular markdown document"),
-		[]byte("\n"),
-		[]byte(`#include "othermarkdowndoc.md"`),
-		[]byte("\n"),
-		[]byte("## Some sub headings"),
-		[]byte("> a nice inline quote"),
-	}))
-
-	createTestMarkdownFile(is, filepath.Join(tmpDir, "othermarkdowndoc.md"), mergeLines([][]byte{
-		[]byte("# Another markdown document, called other"),
-		[]byte("\n"),
-		[]byte("## This is a different subheading"),
-		[]byte("A non-formatted normal line of text!"),
-	}))
+	for filename, content := range tt.otherMarkdownFiles {
+		createTestMarkdownFile(is, filepath.Join(tmpDir, filename), content)
+	}
 
 	fd, err := os.Open(readmeFilePath)
 	is.NoErr(err)
@@ -245,21 +342,10 @@ func TestResolveIncludesSuccess(t *testing.T) {
 
 	doc.path = readmeFilePath
 	is.NoErr(doc.parse())
-	is.Equal(len(doc.includes), 1)
-	is.Equal(doc.includes[0].linePos, 4)
 
-	is.NoErr(doc.ResolveIncludes(tmpDir))
-	is.Equal(mergeLines(doc.lineContent), mergeLines([][]byte{
-		[]byte("# A regular markdown document"),
-		[]byte("\n"),
-		[]byte("# Another markdown document, called other"),
-		[]byte("\n"),
-		[]byte("## This is a different subheading"),
-		[]byte("A non-formatted normal line of text!"),
-		[]byte("\n"),
-		[]byte("## Some sub headings"),
-		[]byte("> a nice inline quote"),
-	}))
+	is.Equal(tt.expectedNumberOfResolvedIncludes, len(doc.includes))                   // expected number of resolved includes
+	is.NoErr(doc.ResolveIncludes(tmpDir))                                              // resolving includes for root doc failed
+	is.Equal(string(tt.expectedResolutionResult), string(mergeLines(doc.lineContent))) // expected resolution value does not match
 }
 
 func TestBackupRoutine(t *testing.T) {
